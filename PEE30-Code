@@ -1,0 +1,161 @@
+/*FreeRTOS opzetten voor arduino*/
+#include <stdio.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_system.h"
+#include "driver/gpio.h"
+
+/*Json Library*/
+#include <ArduinoJson.h>
+
+/*Vermogensensor defining*/
+#include "HX711.h"
+#define Kalibratie    -179 //deze waarde is bepaald door gebruik te maken van een kalibratie code "Sparkfun_HX711_Calibration"
+#define DOUT 6
+#define CLK 7
+HX711 scale;
+float get_units_in_kg;
+float Vermogen_Berekend;
+
+/*Lichtsensor defining*/
+#include <Wire.h>
+#include <BH1750.h>
+BH1750 lightMeter;
+float lux;
+#define PIN_LED        1 // ESP32 pin connected to LED for lighting. 
+
+/*LM35DZ defining*/
+#define ADC_VREF_mV    3300.0 // in millivolt
+#define ADC_RESOLUTION 4096.0
+#define PIN_LM35       0 // ESP32 pin GPIO36 (ADC0) connected to LM35
+float tempC;
+
+/*Cadans sensor defining*/
+struct Cadans {
+  const uint8_t PIN;
+  int Detecties;    // Er is gedetecteerd door lichtsluis
+  float CadansCalc; // Berekend Cadans in RPM
+  float CadansRads; // Cadans in Radialen per seconde
+  bool Detected;
+};
+unsigned long lastReset;
+const unsigned long ResetTussenpoos = 10000; 
+Cadans Cadans1 = {2, 0, 0, false};
+
+/*Interrupt voor Cadans detectie*/
+void IRAM_ATTR isr() {
+  Cadans1.Detected = true;
+}
+
+/*Functie voor Json document maken en opsturen*/
+void jsondoc(void* pvParameter){
+  
+  while(1){
+    StaticJsonDocument<200> doc;
+    doc["Temperatuur in Celsius"] = tempC;
+    doc["Lichtsterkte in lux"] = lux;
+    doc["Cadans in rpm"] = round(Cadans1.CadansCalc);
+    doc["Kracht in kg"] = get_units_in_kg;
+    doc["Vermogen in Watt"] = Vermogen_Berekend; 
+
+    String jsonString;
+    serializeJson(doc, jsonString); 
+    Serial.println(jsonString);
+    vTaskDelay(1001/portTICK_RATE_MS);
+    }
+}
+
+/*Functie voor tellen van cadans en berekenen gemiddeld cadans*/
+void Cadans(void *pvParameter){
+  while(1){
+    if(Cadans1.Detected){
+    delay(10); //delay om te voorkomen dat 1 detectie niet gezien wordt als meerdere detecties.
+    Cadans1.Detecties++;
+    Serial.println("The sensor has detected non-transparency");
+    Cadans1.Detected = false;
+    }
+    if ((millis() - lastReset) >= ResetTussenpoos){
+    Cadans1.CadansCalc = (Cadans1.Detecties *(60/(ResetTussenpoos/1000)));
+    Cadans1.Detecties = 0; //Reset de cadans
+    lastReset = millis(); //Update reset time
+    }
+    vTaskDelay(10/portTICK_RATE_MS);
+  }
+}
+
+/*Functie voor Kracht meten en vermogen bepalen*/
+void Vermogen (void* pvParameter){
+  while(1){
+    get_units_in_kg = scale.get_units()*0.453592;
+    if(get_units_in_kg < 0){
+      get_units_in_kg = get_units_in_kg *-1; 
+    }
+    Cadans1.CadansRads = 2 * M_PI * (Cadans1.CadansCalc/60); //(w = 2pi*f) (f = rpm/60)
+    Vermogen_Berekend = (get_units_in_kg*9.81)* Cadans1.CadansRads; //(P = Torque x Hoeksnelheid) (Torque => F = m * g, Hoeksnelheid => Rad/s = 2*pi*f)
+    vTaskDelay(1000/portTICK_RATE_MS);
+  }
+}
+
+/*Functie voor meten van Licht en Lux aflezen*/
+void Lichtsensor(void *pvParameter){
+  while(1){
+    lux = lightMeter.readLightLevel();
+    if (lux <= float(200)){
+      digitalWrite(PIN_LED, HIGH);
+    }
+    else{
+      digitalWrite(PIN_LED, LOW);
+    }
+    vTaskDelay(1000/portTICK_RATE_MS);
+  }
+}
+
+/*Functie voor meten van temperatuur en aflezen in Celsius*/
+void Temperatuur(void *pvParameter){
+  while(1){
+    int adcVal = analogRead(PIN_LM35);
+    float milliVolt = adcVal * (ADC_VREF_mV/ADC_RESOLUTION);
+    tempC = milliVolt/10 - 5;
+    //Serial.printf("Gemeten temperatuur in Celsius: %.3f °C \n", tempC); 
+    vTaskDelay(500/portTICK_RATE_MS);
+  }
+
+}
+
+void setup() {
+  Serial.begin(115200);
+  Serial.println();
+
+  // Cadans Setup
+  pinMode(Cadans1.PIN, INPUT_PULLDOWN);
+  attachInterrupt(Cadans1.PIN, isr, ONLOW);
+  Serial.println(F("Interrupt created!"));
+
+  // Lichtsensor Setup
+  pinMode(PIN_LED, OUTPUT);
+  Wire.begin(5,4);
+  lightMeter.begin();
+  Serial.println(F("BH1750 Test Begin"));
+
+  //Vermogen setup
+  scale.begin(DOUT, CLK);
+  scale.set_scale(Kalibratie);
+  scale.tare();
+
+  //RTOS opzetten
+  Serial.println(F("Creating Tasks..."));
+  xTaskCreate(&Cadans, "Cadans", 2048, NULL, 5, NULL);
+  xTaskCreate(&Lichtsensor, "Lichtsensor", 2048, NULL, 5, NULL);
+  xTaskCreate(&Temperatuur, "Temperatuur", 2048, NULL, 5, NULL);
+  xTaskCreate(&Vermogen, "Vermogen", 2048, NULL, 5, NULL);
+  xTaskCreate(&jsondoc, "JsonDoc", 2048, NULL, 5, NULL);
+}
+
+void loop() {
+
+/*Omreken factoren voor cadans naar radialen voor Vermogen = Kracht x Hoeksnelheid*/
+/*1 rpm = 1/60 omwentelingen per seconde = 1/60 Hz(Hertz), 60 rpm is gelijk aan 1 hertz*/
+/*1 rpm = (2*Pi)/60s = 0.104720 rad/s*/
+/*Deze verband is gelegd in w =  2*pi*f = 2pi/T */
+}
+
