@@ -98,6 +98,7 @@ void Vermogen (void* pvParameter){
   }
 }
 
+/*Nieuwe Functie voor meten van temperatuur en aflezen in Celsius*/
 void Lichtsensor(void *pvParameter){
   while(1){
     lux = lightMeter.readLightLevel();
