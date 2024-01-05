@@ -98,7 +98,34 @@ void Vermogen (void* pvParameter){
   }
 }
 
-/*Functie voor meten van Licht en Lux aflezen*/
+void Lichtsensor(void *pvParameter){
+  while(1){
+    lux = lightMeter.readLightLevel();
+    if (lux <= float(200)){
+      Lichttijd = millis();
+      while(lux <= 200){ 
+        lux = lightMeter.readLightLevel();
+        if((millis() - Lichttijd) => LichtTijdInterval){
+          digitalWrite(PIN_LED, HIGH);
+        } 
+        vTaskDelay(1000/portTICK_RATE_MS);
+      }
+    }
+    else{
+      Lichttijd = millis();
+      while(lux => 200){ 
+        lux = lightMeter.readLightLevel();
+        if((millis() - Lichttijd) <= LichtTijdInterval){
+          digitalWrite(PIN_LED, LOW);
+        } 
+        vTaskDelay(1000/portTICK_RATE_MS);
+      }
+    }
+    vTaskDelay(1000/portTICK_RATE_MS);
+  }
+}
+
+/*Oude Functie voor meten van Licht en Lux aflezen*/
 void Lichtsensor(void *pvParameter){
   while(1){
     lux = lightMeter.readLightLevel();
