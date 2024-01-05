@@ -1,3 +1,5 @@
+/*Deze code is geschreven door Brian Vogel en Ruje Entingh van Hogeschool Rotterdam voor PEE30 elektrotechniek*/
+
 /*FreeRTOS opzetten voor arduino*/
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
