@@ -118,7 +118,6 @@ void Temperatuur(void *pvParameter){
     int adcVal = analogRead(PIN_LM35);
     float milliVolt = adcVal * (ADC_VREF_mV/ADC_RESOLUTION);
     tempC = milliVolt/10 - 5;
-    //Serial.printf("Gemeten temperatuur in Celsius: %.3f °C \n", tempC); 
     vTaskDelay(500/portTICK_RATE_MS);
   }
 
@@ -137,7 +136,7 @@ void setup() {
   pinMode(PIN_LED, OUTPUT);
   Wire.begin(5,4);
   lightMeter.begin();
-  Serial.println(F("BH1750 Test Begin"));
+  Serial.println(F("BH1750 Begin"));
 
   //Vermogen setup
   scale.begin(DOUT, CLK);
