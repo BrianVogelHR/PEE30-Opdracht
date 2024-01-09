@@ -12,7 +12,7 @@
 
 /*Vermogensensor defining*/
 #include "HX711.h"
-#define Kalibratie    -179 //deze waarde is bepaald door gebruik te maken van een kalibratie code "Sparkfun_HX711_Calibration"
+
 #define DOUT 6
 #define CLK 7
 HX711 scale;
@@ -24,18 +24,20 @@ float Vermogen_Berekend;
 #include <BH1750.h>
 BH1750 lightMeter;
 float lux;
+unsigned long Lichttijd;
+const unsigned long LichtTijdInterval = 5000;
 #define PIN_LED        1 // ESP32 pin connected to LED for lighting. 
 
 /*LM35DZ defining*/
 #define ADC_VREF_mV    3300.0 // in millivolt
 #define ADC_RESOLUTION 4096.0
-#define PIN_LM35       0 // ESP32 pin GPIO36 (ADC0) connected to LM35
+#define PIN_LM35       0 //Pin 0 van de ESP32-C3 devkit. 
 float tempC;
 
 /*Cadans sensor defining*/
 struct Cadans {
-  const uint8_t PIN;
-  int Detecties;    // Er is gedetecteerd door lichtsluis
+	const uint8_t PIN;
+	int Detecties;    // Er is gedetecteerd door lichtsluis
   float CadansCalc; // Berekend Cadans in RPM
   float CadansRads; // Cadans in Radialen per seconde
   bool Detected;
@@ -66,7 +68,6 @@ void jsondoc(void* pvParameter){
     vTaskDelay(1001/portTICK_RATE_MS);
     }
 }
-
 /*Functie voor tellen van cadans en berekenen gemiddeld cadans*/
 void Cadans(void *pvParameter){
   while(1){
@@ -78,6 +79,7 @@ void Cadans(void *pvParameter){
     }
     if ((millis() - lastReset) >= ResetTussenpoos){
     Cadans1.CadansCalc = (Cadans1.Detecties *(60/(ResetTussenpoos/1000)));
+
     Cadans1.Detecties = 0; //Reset de cadans
     lastReset = millis(); //Update reset time
     }
@@ -88,7 +90,7 @@ void Cadans(void *pvParameter){
 /*Functie voor Kracht meten en vermogen bepalen*/
 void Vermogen (void* pvParameter){
   while(1){
-    get_units_in_kg = scale.get_units()*0.453592;
+    get_units_in_kg = scale.get_units(10)/1000;
     if(get_units_in_kg < 0){
       get_units_in_kg = get_units_in_kg *-1; 
     }
@@ -98,46 +100,33 @@ void Vermogen (void* pvParameter){
   }
 }
 
-/*Nieuwe Functie voor meten van temperatuur en aflezen in Celsius*/
+/*Functie voor meten van Licht en Lux aflezen*/
 void Lichtsensor(void *pvParameter){
   while(1){
     lux = lightMeter.readLightLevel();
     if (lux <= float(200)){
       Lichttijd = millis();
-      while(lux <= 200){ 
+      while(lux <= float(200)){ 
         lux = lightMeter.readLightLevel();
-        if((millis() - Lichttijd) => LichtTijdInterval){
+        
+        if((millis() - Lichttijd) >= LichtTijdInterval){
           digitalWrite(PIN_LED, HIGH);
         } 
-        vTaskDelay(1000/portTICK_RATE_MS);
+        vTaskDelay(100/portTICK_RATE_MS);
       }
     }
     else{
       Lichttijd = millis();
-      while(lux => 200){ 
+      while(lux >= float(200)){ 
         lux = lightMeter.readLightLevel();
-        if((millis() - Lichttijd) <= LichtTijdInterval){
+        if((millis() - Lichttijd) >= LichtTijdInterval){
           digitalWrite(PIN_LED, LOW);
         } 
-        vTaskDelay(1000/portTICK_RATE_MS);
+        vTaskDelay(100/portTICK_RATE_MS);
       }
     }
-    vTaskDelay(1000/portTICK_RATE_MS);
-  }
-}
-
-/*Oude Functie voor meten van Licht en Lux aflezen*/
-void Lichtsensor(void *pvParameter){
-  while(1){
-    lux = lightMeter.readLightLevel();
-    if (lux <= float(200)){
-      digitalWrite(PIN_LED, HIGH);
+    vTaskDelay(100/portTICK_RATE_MS);
     }
-    else{
-      digitalWrite(PIN_LED, LOW);
-    }
-    vTaskDelay(1000/portTICK_RATE_MS);
-  }
 }
 
 /*Functie voor meten van temperatuur en aflezen in Celsius*/
@@ -146,9 +135,8 @@ void Temperatuur(void *pvParameter){
     int adcVal = analogRead(PIN_LM35);
     float milliVolt = adcVal * (ADC_VREF_mV/ADC_RESOLUTION);
     tempC = milliVolt/10 - 5;
-    vTaskDelay(500/portTICK_RATE_MS);
+    vTaskDelay(1000/portTICK_RATE_MS);
   }
-
 }
 
 void setup() {
@@ -168,8 +156,29 @@ void setup() {
 
   //Vermogen setup
   scale.begin(DOUT, CLK);
-  scale.set_scale(Kalibratie);
+  Serial.print("UNITS: ");
+  Serial.println(scale.get_units(10));
+
+  Serial.println("\nEmpty the scale, press a key to continue");
+  while(!Serial.available());
+  while(Serial.available()) Serial.read();
+
   scale.tare();
+  Serial.print("UNITS: ");
+  Serial.println(scale.get_units(10));
+
+
+  Serial.println("\nPut 1000 gram in the scale, press a key to continue");
+  while(!Serial.available());
+  while(Serial.available()) Serial.read();
+
+  scale.calibrate_scale(1000, 5);
+  Serial.print("UNITS: ");
+  Serial.println(scale.get_units(10));
+
+  Serial.println("\nScale is calibrated, press a key to continue");
+  while(!Serial.available());
+  while(Serial.available()) Serial.read();
 
   //RTOS opzetten
   Serial.println(F("Creating Tasks..."));
@@ -187,4 +196,3 @@ void loop() {
 /*1 rpm = (2*Pi)/60s = 0.104720 rad/s*/
 /*Deze verband is gelegd in w =  2*pi*f = 2pi/T */
 }
-
