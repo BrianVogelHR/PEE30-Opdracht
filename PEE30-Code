@@ -95,7 +95,7 @@ void Vermogen (void* pvParameter){
       get_units_in_kg = get_units_in_kg *-1; 
     }
     Cadans1.CadansRads = 2 * M_PI * (Cadans1.CadansCalc/60); //(w = 2pi*f) (f = rpm/60)
-    Vermogen_Berekend = (get_units_in_kg*9.81)* Cadans1.CadansRads; //(P = Torque x Hoeksnelheid) (Torque => F = m * g, Hoeksnelheid => Rad/s = 2*pi*f)
+    Vermogen_Berekend = (get_units_in_kg*9.81 * 0.2)* Cadans1.CadansRads; //(P = Torque x Hoeksnelheid) (Torque => F(N) = m * g => F(N) * A =  F(Nm), Hoeksnelheid => Rad/s = 2*pi*f)
     vTaskDelay(1000/portTICK_RATE_MS);
   }
 }
@@ -168,11 +168,11 @@ void setup() {
   Serial.println(scale.get_units(10));
 
 
-  Serial.println("\nPut 1000 gram in the scale, press a key to continue");
+  Serial.println("\nPut 1500 gram in the scale, press a key to continue");
   while(!Serial.available());
   while(Serial.available()) Serial.read();
 
-  scale.calibrate_scale(1000, 5);
+  scale.calibrate_scale(1500, 10);
   Serial.print("UNITS: ");
   Serial.println(scale.get_units(10));
 
