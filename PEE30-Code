@@ -159,26 +159,23 @@ void setup() {
   Serial.print("UNITS: ");
   Serial.println(scale.get_units(10));
 
-  Serial.println("\nEmpty the scale, press a key to continue");
-  while(!Serial.available());
-  while(Serial.available()) Serial.read();
-
   scale.tare();
   Serial.print("UNITS: ");
   Serial.println(scale.get_units(10));
 
 
   Serial.println("\nPut 1500 gram in the scale, press a key to continue");
-  while(!Serial.available());
-  while(Serial.available()) Serial.read();
+  while( (-1*scale.get_units(10)) <= 100){
+    delay(500);
+  } 
+  //Scale geeft negatieve waardes bij 1,5kg na scale.tare.
+  //door te vemenigvuldigen met *-1 kan je checken of het kleiner is dan 100 units.
 
   scale.calibrate_scale(1500, 10);
   Serial.print("UNITS: ");
   Serial.println(scale.get_units(10));
 
-  Serial.println("\nScale is calibrated, press a key to continue");
-  while(!Serial.available());
-  while(Serial.available()) Serial.read();
+  Serial.println("\nSensor is calibrated");
 
   //RTOS opzetten
   Serial.println(F("Creating Tasks..."));
