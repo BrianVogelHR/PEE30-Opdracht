@@ -95,7 +95,7 @@ void Vermogen (void* pvParameter){
       get_units_in_kg = get_units_in_kg *-1; 
     }
     Cadans1.CadansRads = 2 * M_PI * (Cadans1.CadansCalc/60); //(w = 2pi*f) (f = rpm/60)
-    Vermogen_Berekend = (get_units_in_kg*9.81 * 0.2)* Cadans1.CadansRads; //(P = Torque x Hoeksnelheid) (Torque => F(N) = m * g => F(N) * A =  F(Nm), Hoeksnelheid => Rad/s = 2*pi*f)
+    Vermogen_Berekend = (get_units_in_kg*9.81 * 0.2)* Cadans1.CadansRads; //(P = Torque x Hoeksnelheid) (Torque => T(Nm) = F(N) * r(m), Hoeksnelheid => Rad/s = 2*pi*f)
     vTaskDelay(1000/portTICK_RATE_MS);
   }
 }
@@ -134,7 +134,7 @@ void Temperatuur(void *pvParameter){
   while(1){
     int adcVal = analogRead(PIN_LM35);
     float milliVolt = adcVal * (ADC_VREF_mV/ADC_RESOLUTION);
-    tempC = milliVolt/10 - 5;
+    tempC = milliVolt/10 - 4;
     vTaskDelay(1000/portTICK_RATE_MS);
   }
 }
